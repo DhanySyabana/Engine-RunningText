@@ -1,0 +1,6 @@
+**/*.txt
+**/output*
+videos/*
+**/__pycache__
+*.pyc
+*.pyo
