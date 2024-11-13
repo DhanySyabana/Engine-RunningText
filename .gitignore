@@ -4,3 +4,9 @@ videos/*
 **/__pycache__
 *.pyc
 *.pyo
+*.mp3
+bin/
+lib/
+lib64
+share/
+*.cfg

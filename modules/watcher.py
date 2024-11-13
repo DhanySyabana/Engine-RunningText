@@ -1,0 +1,49 @@
+import os
+from datetime import datetime
+
+def getTimestampFromFilename(name: str, channel = None) -> datetime:
+    if channel == 'metrotv':
+        x = name[-20:]
+        x = x.replace('.mp4', '')
+        x = x.split('-')
+        if len(x) != 5:
+            print("PANIC: VIDEO FORMAT CHANGED. EXITTING")
+            exit(1)
+        year = int(x[4])
+        month = int(x[0])
+        day = int(x[1])
+        hour = int(x[2])
+        minutes = int(x[3])
+        second = 0
+    else:
+        x = name[-18:]
+        x = x.replace('.mp4', '')
+        x = x.split('-')
+        year = datetime.now().year
+        month = int(x[0])
+        day = int (x[1])
+        hour = int(x[2])
+        minutes = int (x[3])
+        second = int(x[4])
+
+    return datetime(year=year, month=month, day=day, hour=hour, minute=minutes, second=second) 
+
+
+
+def getNextUnprocessVideo(path: str, lastProcessedTime: datetime, channel = None) -> tuple[str | None, datetime | None]:
+    files = os.listdir(path)
+    mp4 = [f for f in files if f.endswith('.mp4')]
+    timestamps = [ getTimestampFromFilename(v, channel) for v in mp4]
+    mp4WithTimestamps = zip(mp4, timestamps)
+    sorted_by_timestamps = sorted(mp4WithTimestamps, key= lambda x: x[1])
+    sorted_by_timestamps = [ x for x in sorted_by_timestamps if x[1] > lastProcessedTime]
+    if len(sorted_by_timestamps) == 0:
+        return None, None
+
+    return sorted_by_timestamps[0][0], sorted_by_timestamps[0][1]
+
+
+
+
+if __name__ == "__main__":
+    print(getNextUnprocessVideo('/home/comvis/siputri/CNNSTREAMING', datetime(year=2024, month=10, day=7, hour=14)))

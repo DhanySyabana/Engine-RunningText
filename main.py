@@ -2,12 +2,19 @@
 
 import os
 import sys
+from cv2.gapi.streaming import timestamp
 from moviepy import editor
 from modules.cropper import cropAndOcr
+from modules.mongo import SaveResults, addNewWatchLog, getLastProcessedVideo, updateWatchLogStatus
+from modules.routines import deleteExpiredFile
+from modules.watcher import getNextUnprocessVideo
 from constants import properties
+from datetime import datetime, timedelta
 import threading
 import psutil
 import time
+import shutil
+import traceback
 
 
 def display_cpu():
@@ -45,51 +52,108 @@ def stop():
     print("Elapsed time: ", time.time() - start_time)
 
 start_time = time.time()
+def run(channel, channelPath):
+    i = 0
+    while True:
+        id = None
+        try:
+            last = getLastProcessedVideo(channel)
+
+            print("last : ", last)
+
+            
+            if last is None:
+                lastTime = datetime.today() - timedelta(days=1)
+                today = lastTime.strftime('%Y%m%d')
+                today_morning = today + "000000"
+                lastTime = datetime.strptime(today_morning, '%Y%m%d%H%M%S')
+            else:
+                if last['status'] != 'COMPLETED':
+                    #that means previous run is failed
+                    s = updateWatchLogStatus(last["_id"], "FAILED")
+                    print('Last s: ', last)
+                    print('S: ', s)
+                    lastTime = last["time"] - timedelta(minutes=2)
+                else:
+                    lastTime = last['time']
+            print(lastTime)
+
+            filePath, timestamps = getNextUnprocessVideo(channelPath, lastTime, channel )
+            print(filePath,timestamps)
+
+            print(channelPath+ '/' +filePath)
+
+            if filePath is None or timestamps is None:
+                time.sleep(60)
+                continue
+            #shutil.copy(channelPath+ '/' + filePath, 'temp/' )
+            id = addNewWatchLog(timestamps, channel, datetime.now())
+            res = cropAndOcr(channelPath+ '/' + filePath, timestamps, **properties.tv[channel], logId=id, folderOutput=f'output/{channel}' )
+
+            sr = SaveResults(res, channel)
+
+            print(sr)
+           
+            updateWatchLogStatus(id, 'COMPLETED')
+            i+=1
+        except Exception as e:
+            print(e)
+            print(traceback.format_exc())
+            if id is not None:
+                updateWatchLogStatus(id, 'FAILED', repr(e) )
+            break
+
+def deleteRoutine():
+    while True:
+        try:
+            deleteExpiredFile()
+        except Exception as e:
+            print(e)
+            print(traceback.format_exc)
+        time.sleep(10*60)
 
 if __name__ == '__main__':
-    #cropAndOcrv2('videos/Metro TV 18 Juli 2024.mp4', properties.tv['metrotv']['type'], properties.tv['metrotv']['top'], properties.tv['metrotv']['left'], properties.tv['metrotv']['bottom'], properties.tv['metrotv']['right']) 
-    #cropAndOcrv2('videos/1. Metro TV - 22072024 ( 06.50 ).mp4', properties.tv['metrotv']['type'], properties.tv['metrotv']['top'], properties.tv['metrotv']['left'], properties.tv['metrotv']['bottom'], properties.tv['metrotv']['right'])
-    channel = 'rcti'
-    #cropAndOcrv2('videos/2. Kompas TV - 22072024 ( 06.58 ).mp4', properties.tv[channel]['type'], properties.tv[channel]['top'], properties.tv[channel]['left'], properties.tv[channel]['bottom'], properties.tv[channel]['right'], properties.tv[channel]['threshold'])
-    #cropAndOcrv2('videos/11. Trans 7 - 22072024 ( 14.19 ).mp4', properties.tv[channel]['type'], properties.tv[channel]['top'], properties.tv[channel]['left'], properties.tv[channel]['bottom'], properties.tv[channel]['right'], properties.tv[channel]['threshold'])
-    #cropAndOcrv2('videos/6. CNN - 22072024 ( 06.50 ).mp4', properties.tv[channel]['type'], properties.tv[channel]['top'], properties.tv[channel]['left'], properties.tv[channel]['bottom'], properties.tv[channel]['right'], properties.tv[channel]['threshold'])
-    #cropAndOcrv2('videos/3. Berita Satu TV - 22072024 ( 08.28 ).mp4', properties.tv[channel]['type'], properties.tv[channel]['top'], properties.tv[channel]['left'], properties.tv[channel]['bottom'], properties.tv[channel]['right'], properties.tv[channel]['threshold'])
-    #cropAndOcrv2('videos/4. IDX Channel - 22072024 ( 07.00 - Tidak ada Jam pada Video ).mp4', properties.tv[channel]['type'], properties.tv[channel]['top'], properties.tv[channel]['left'], properties.tv[channel]['bottom'], properties.tv[channel]['right'], properties.tv[channel]['threshold'])
-    #cropAndOcrv2('videos/5. iNews TV - 22072024 ( 08.57 ).mp4', properties.tv[channel]['type'], properties.tv[channel]['top'], properties.tv[channel]['left'], properties.tv[channel]['bottom'], properties.tv[channel]['right'], properties.tv[channel]['threshold'])
-    start()
-    try:
+    metroThread = threading.Thread(target=run, args=('metrotv', '/home/comvis/siputri/METROTVSTREAMING'))
+    kompasThread = threading.Thread(target=run, args=('kompastv', '/home/comvis/siputri/KOMPASSTREAMING'))
+    cnnThread = threading.Thread(target=run, args=('cnn', '/home/comvis/siputri/CNNSTREAMING'))
+    rctiThread = threading.Thread(target=run, args= ('rcti', '/home/comvis/remote1/RCTISTREAMING'))
+    #trans7Thread = threading.Thread(target=run, args=('trans7', '/home/comvis/remote1/TRANS7STREAMING'))
+    berita1Thread = threading.Thread(target=run, args=('beritasatu', '/home/comvis/remote1/BERITASATUSTREAMING'))
+    idxThread = threading.Thread(target=run, args=('idxchannel', '/home/comvis/siputri/IDXSTREAMING'))
+    inewsThread = threading.Thread(target=run, args=('inewstv', '/home/comvis/remote1/INEWSSTREAMING'))
+    nusataraThread = threading.Thread(target=run, args=('nusantaratv', '/home/comvis/remote1/NUSANTARATVSTREAMING'))
+    mncThread = threading.Thread(target=run, args=('mnctv', '/home/comvis/remote2/MNCSTREAMING'))
+    tvoneThread = threading.Thread(target=run, args=('tvone','/home/comvis/siputri/TVONESTREAMING'))
+    tvriThread = threading.Thread(target=run, args=('tvri', '/home/comvis/remote2/TVRISTREAMING'))
+    deleteThread = threading.Thread(target=deleteRoutine)
 
-        t1 = threading.Thread(target=cropAndOcr, args=('videos/Metro TV 18 Juli 2024.mp4', properties.tv['metrotv']['type'], properties.tv['metrotv']['top'], properties.tv['metrotv']['left'], properties.tv['metrotv']['bottom'], properties.tv['metrotv']['right'], properties.tv['metrotv']['threshold'], "t1"))
-        t2 = threading.Thread(target=cropAndOcr, args=('videos/Metro TV 18 Juli 2024.mp4', properties.tv['metrotv']['type'], properties.tv['metrotv']['top'], properties.tv['metrotv']['left'], properties.tv['metrotv']['bottom'], properties.tv['metrotv']['right'], properties.tv['metrotv']['threshold'], "t2"))
+    metroThread.start()
+    kompasThread.start()
+    cnnThread.start()
+    rctiThread.start() 
+    #trans7Thread.start() 
+    berita1Thread.start()
+    idxThread.start()
+    inewsThread.start()
+    nusataraThread.start()
+    #mncThread.start()
+    #tvoneThread.start()
+    #tvriThread.start()
+    #deleteThread.start()
 
-        t3 = threading.Thread(target=cropAndOcr, args=('videos/Metro TV 18 Juli 2024.mp4', properties.tv['metrotv']['type'], properties.tv['metrotv']['top'], properties.tv['metrotv']['left'], properties.tv['metrotv']['bottom'], properties.tv['metrotv']['right'], properties.tv['metrotv']['threshold'], "t2"))
+    metroThread.join()
+    kompasThread.join()
+    cnnThread.join()
+    rctiThread.join() 
+    #trans7Thread.join() 
+    berita1Thread.join()
+    idxThread.join()
+    inewsThread.join()
+    nusataraThread.join()
+    mncThread.join()
+    tvoneThread.join()
+    tvriThread.join()
+    deleteThread.join()
 
-        t4 = threading.Thread(target=cropAndOcr, args=('videos/Metro TV 18 Juli 2024.mp4', properties.tv['metrotv']['type'], properties.tv['metrotv']['top'], properties.tv['metrotv']['left'], properties.tv['metrotv']['bottom'], properties.tv['metrotv']['right'], properties.tv['metrotv']['threshold'], "t2"))
-        t5 = threading.Thread(target=cropAndOcr, args=('videos/Metro TV 18 Juli 2024.mp4', properties.tv['metrotv']['type'], properties.tv['metrotv']['top'], properties.tv['metrotv']['left'], properties.tv['metrotv']['bottom'], properties.tv['metrotv']['right'], properties.tv['metrotv']['threshold'], "t1"))
-        t6 = threading.Thread(target=cropAndOcr, args=('videos/Metro TV 18 Juli 2024.mp4', properties.tv['metrotv']['type'], properties.tv['metrotv']['top'], properties.tv['metrotv']['left'], properties.tv['metrotv']['bottom'], properties.tv['metrotv']['right'], properties.tv['metrotv']['threshold'], "t2"))
+   
 
-        t7 = threading.Thread(target=cropAndOcr, args=('videos/Metro TV 18 Juli 2024.mp4', properties.tv['metrotv']['type'], properties.tv['metrotv']['top'], properties.tv['metrotv']['left'], properties.tv['metrotv']['bottom'], properties.tv['metrotv']['right'], properties.tv['metrotv']['threshold'], "t2"))
-
-        t8 = threading.Thread(target=cropAndOcr, args=('videos/Metro TV 18 Juli 2024.mp4', properties.tv['metrotv']['type'], properties.tv['metrotv']['top'], properties.tv['metrotv']['left'], properties.tv['metrotv']['bottom'], properties.tv['metrotv']['right'], properties.tv['metrotv']['threshold'], "t2"))
-        t1.start()
-        t2.start()
-        t3.start()
-        t4.start()
-        t5.start()
-        t6.start()
-        t7.start()
-        t8.start()
-        t1.join()
-        t2.join()
-        t3.join()
-        t4.join()
-        t5.join()
-        t6.join()
-        t7.join()
-        t8.join()
-    finally:
-        stop()
-
-    #editor = editor.VideoFileClip('videos/10. RCTI - 22072024 ( 11.26 ).mp4')
-    #editor = editor.subclip(5*60 + 15, 5*60 + 15 + 2*60)
-    #editor.write_videofile('videos/10.mp4')

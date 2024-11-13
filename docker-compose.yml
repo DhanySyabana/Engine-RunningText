@@ -1,0 +1,10 @@
+services:
+  medmon-mongo:
+    image: mongo:latest
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongoData:/data/db
+    restart: always
+volumes:
+  mongoData:

@@ -40,10 +40,10 @@ tv = {
         'threshold': 500000
         },
     'beritasatu': {
-        'top': 230,
-        'left': 71,
-        'bottom': 241,
-        'right': 424 - 61,
+        'top': 540 - 45,
+        'left': 159,
+        'bottom': 540-18,
+        'right': 960 - 138,
         'type': 'flip',
         'threshold': 200000
         },
@@ -63,6 +63,37 @@ tv = {
         'type': 'flip',
         'threshold': 500000
         },
-
-
+    'nusantaratv': {
+        'top': 480 -45,
+        'left': 227,
+        'bottom': 480 - 25,
+        'right': 854 - 115,
+        'type': 'run',
+        'threshold': None,
+    },
+    'mnctv': {
+        'top': 360 - 28,
+        'left': 94,
+        'bottom': 360 - 12,
+        'right': 640 - 27,
+        'type': 'flip',
+        'threshold': 500000
+        },
+    'tvone': {
+        'top': 360 - 30,
+        'left': 117,
+        'bottom': 360 - 17,
+        'right': 640 - 65,
+        'type': 'flip',
+        'threshold': 500000
+        },
+    'tvri': {
+        'top': 360 - 32,
+        'left': 81,
+        'bottom': 360 - 17,
+        'right': 640 - 94,
+        'type': 'run',
+        'threshold': None,
     }
+
+}

@@ -1,7 +1,6 @@
 import jiwer
 transforms = jiwer.Compose(
     [
-        jiwer.ExpandCommonEnglishContractions(),
         jiwer.RemoveEmptyStrings(),
         jiwer.ToLowerCase(),
         jiwer.RemoveMultipleSpaces(),

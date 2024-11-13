@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import easyocr
 import cv2
 import numpy as np
@@ -6,7 +7,7 @@ from moviepy import editor
 from tqdm import tqdm
 from typing import Literal
 from jiwer import wer, cer
-from modules.mongo import addTimestamp, deleteTimestamp
+from modules.mongo import addTimestamp, deleteTimestamp, updateWatchLogStatus
 from functools import reduce
 
 from utils.image import preprocess, superRes
@@ -19,8 +20,19 @@ VideoType = Literal['flip', 'run']
 
 THRESHOLD_DIFF = 1000000
 THRESHOLD_FRAME_WITHOUT_TEXT = 5 * 30
-reader = easyocr.Reader(['id'], gpu=False, verbose=False)
+reader = easyocr.Reader(['id'], gpu=True, verbose=True)
 #paddleReader = PaddleOCR(use_angle_cls=False, lang='id', det=False)
+
+def formatOCRResult(source, result, dt: datetime, text, duration: float, confidence=None):
+    return {
+        "source":source,
+        "result": result,
+        "time" : dt,
+        "text" : text,
+        "confidence": confidence,
+        "duration": duration,
+        "is_validated": False
+        }
 
 def formatMinute(sec):
     minutes = int(sec // 60)
@@ -28,23 +40,25 @@ def formatMinute(sec):
     return f"{minutes}:{sec:0>2}"
 
 
-def cropAndOcr(filename: str, type: VideoType, top: int, left: int, bottom: int, right: int, threshold, folderOutput: str = 'output'):
+def cropAndOcr(filename: str, dt: datetime, type: VideoType, top: int, left: int, bottom: int, right: int, threshold, logId, folderOutput: str = 'output') -> list:
     if type == 'flip':
-        CropThenOcrFlip(filename, top, left, bottom, right, threshold, folderOutput)
+        return CropThenOcrFlip(filename, dt, top, left, bottom, right, threshold, logId, folderOutput)
     elif type == 'run':
-        OcrThenCropRunning(filename, top, left, bottom, right, threshold, folderOutput)
+        return OcrThenCropRunning(filename, dt, top, left, bottom, right, threshold, logId, folderOutput)
 
-def CropThenOcrFlip(videoFilename, top: int, left: int, bottom: int, right: int, threshold,  folderOutput: str = 'output'):
+def CropThenOcrFlip(videoFilename, dt: datetime, top: int, left: int, bottom: int, right: int, threshold, logId,  folderOutput: str = 'output') -> list:
     video = cv2.VideoCapture(videoFilename)
     fps = video.get(cv2.CAP_PROP_FPS)
     croppedBefore = None
     videoHeight = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
     videoWidth = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
-    fpsProccess = round(fps * 0.5)
+    fpsProccess = round(fps * 1)
     fpsElapsed = 0
     timestampToCut = []
     diffStart = None
     lastAdded = False
+
+    updateWatchLogStatus(logId, 'RUNNING')
     while video.isOpened():
         ret, frame = video.read()
 
@@ -86,8 +100,8 @@ def CropThenOcrFlip(videoFilename, top: int, left: int, bottom: int, right: int,
 
     ocrFilteredTimestamp = []
     wordBefore = None
-    idBefore = None
-    for timestamp in tqdm(filteredTimestamp):
+    ocrResult = []
+    for timestamp in filteredTimestamp:
         startframe = int(timestamp[0])
         endframe = int(timestamp[1])
         video.set(cv2.CAP_PROP_POS_FRAMES, startframe)
@@ -123,38 +137,56 @@ def CropThenOcrFlip(videoFilename, top: int, left: int, bottom: int, right: int,
                         textBefore = wordBefore
 
                     timeStampBefore = ocrFilteredTimestamp.pop()
-                    deleteTimestamp(idBefore)
+                    ocrResult.pop()
                     ocrFilteredTimestamp.append((timeStampBefore[0], endframe, textBefore))
-                    ret = addTimestamp(videoFilename, formatMinute(timeStampBefore[0] / fps), formatMinute(endframe / fps), textBefore[1], textBefore[2])
+                    timeStart = dt + timedelta(seconds=timeStampBefore[0]/ fps)
+                    timestr= timeStart.strftime("%Y_%m_%d_%H_%M_%S")
+                    path = f'videos/{folderOutput}/{timestr}.mp4'
+                    duration = (endframe - timeStampBefore[0])/fps 
+                    ret = formatOCRResult(videoFilename, path, timeStart, textBefore[1], duration, textBefore[2])
+                    ocrResult.append(ret)
 
                     wordBefore = textBefore
-                    idBefore = ret.inserted_id
                     continue
                 
             if textBefore[2] > 0.0:
                 ocrFilteredTimestamp.append((startframe, endframe, textBefore))
-                ret = addTimestamp(videoFilename, formatMinute(startframe / fps), formatMinute(endframe / fps), textBefore[1], textBefore[2])
-                idBefore = ret.inserted_id
-
+                timeStart = dt + timedelta(seconds=startframe/fps)
+                timestr= timeStart.strftime("%Y_%m_%d_%H_%M_%S")
+                path = f'videos/{folderOutput}/{timestr}.mp4'
+                duration = (endframe - startframe) / fps
+                ret = formatOCRResult(videoFilename, path, timeStart, textBefore[1], duration, textBefore[2])
+                ocrResult.append(ret)
             else:
                 # ! for now, recognition with small confidence will be saved
-                ret = addTimestamp(videoFilename, formatMinute(startframe / fps), formatMinute(endframe / fps), textBefore[1], textBefore[2])
-                ocrFilteredTimestamp.append((startframe, endframe, textBefore))
-                idBefore = ret.inserted_id
+                timeStart = dt + timedelta(seconds=startframe/fps)
+                timestr= timeStart.strftime("%Y_%m_%d_%H_%M_%S")
+                path = f'videos/{folderOutput}/{timestr}.mp4'
+                duration = (endframe - startframe) / fps
+
+                ret = formatOCRResult(videoFilename, path, timeStart, textBefore[1], duration, textBefore[2])
+                ocrResult.append(ret)
+
 
         wordBefore = textBefore
         
+    video.release()
 
     video = editor.VideoFileClip(videoFilename)
     i = 0
-    for timestamp in tqdm(ocrFilteredTimestamp):
+    for timestamp in (ocrFilteredTimestamp):
         #video.crop(x1=left, x2=right, y1=top, y2=bottom).subclip(timestamp[0] / fps, timestamp[1] / fps).write_videofile(f'videos/{folderOutput}/outputCropped_{i}.mp4'
         #, codec='mpeg4', fps=video.fps, logger=None)
-        video.subclip(timestamp[0] / fps, timestamp[1] / fps).write_videofile(f'videos/{folderOutput}/{videoFilename.split("/")[1].split(".")[0].replace(" ", "_")}_outputOriginal_{i}.mp4'
-        , codec='mpeg4', fps=video.fps, logger=None)   
+        time = dt + timedelta(seconds=timestamp[0]/ fps) 
+        timestr = time.strftime("%Y_%m_%d_%H_%M_%S")
+        video.subclip(timestamp[0] / fps, timestamp[1] / fps).write_videofile(f'videos/{folderOutput}/{timestr}.mp4'
+        , codec='libx264', fps=video.fps, logger=None)   
         i += 1
+    video.close()
 
-def OcrThenCropRunning(videoFilename, top: int, left: int, bottom: int, right: int, threshold,  folderOutput: str = 'output'):
+    return ocrResult
+
+def OcrThenCropRunning(videoFilename, dt: datetime, top: int, left: int, bottom: int, right: int, threshold, logId,  folderOutput: str = 'output') -> list:
     timestampToCut = []
     cap = cv2.VideoCapture(videoFilename)
     frameBefore = None
@@ -167,12 +199,21 @@ def OcrThenCropRunning(videoFilename, top: int, left: int, bottom: int, right: i
     textStart = 0
     frameNoTextThreshold = 10
     frameNoText = 0
+
+    updateWatchLogStatus(logId, 'RUNNING')
+    ocrResult = []
     while (cap.isOpened()):
         ret, frame = cap.read()
         if not ret:
+            print(fpsElapsed)
             if concatenatedText != "":
                 timestampToCut.append((textStart, (fpsElapsed - fpsProccess)))
-                addTimestamp(videoFilename, formatMinute(textStart / fps), formatMinute((fpsElapsed - fpsProccess) / fps), concatenatedText, None)
+                timeStart = dt + timedelta(seconds=textStart / fps)
+                timestr= timeStart.strftime("%Y_%m_%d_%H_%M_%S")
+                path = f'videos/{folderOutput}/{timestr}.mp4'
+                duration = ((fpsElapsed - fpsElapsed) - textStart) / fps
+                ret = formatOCRResult(videoFilename, path, timeStart, concatenatedText, duration, None)
+                ocrResult.append(ret)
             break
         if (fpsElapsed % fpsProccess != 0):
           fpsElapsed += 1
@@ -186,8 +227,13 @@ def OcrThenCropRunning(videoFilename, top: int, left: int, bottom: int, right: i
           #print(formatMinute(fpsElapsed / fps))
           #print(texts)
           textWORight = []
+
+          limiter = [' 0', '~0', '-0', '\'0', '\"0', '+0', 'K0', 'P0', ' @', '~@', '-@', '\'@', '\"@', '+@', 'K@', 'K0',' O', '~O', '-O', '\'O', '+O', '\"O']
+          oneCharLimiter =['0', '@']
+          specialLimier = [' \'', ' \"']
           if len(texts) > 1:
               before = None
+              bb = None
               for text in texts:
                   coord = text[0]
                   topRight = coord[1]
@@ -196,20 +242,32 @@ def OcrThenCropRunning(videoFilename, top: int, left: int, bottom: int, right: i
                   mostLeft = topLeft[0]
                   if before is None:
                       before = mostRight
+                      bb=text[1]
                       textWORight.append(text)
                       continue
                   delta = mostLeft - before
-                  if delta < 10:
+
+                  stripped = bb.strip()
+
+                  thresss = 3 if wordbefore is not None and ((stripped[-2::] in limiter) or (stripped[-2::] in specialLimier) or (stripped[-1::] in oneCharLimiter)) else 11
+                  print("STRIPED \"", stripped[-2::],"\"")
+
+                  print("THRES ", thresss)
+                  if delta < thresss:
                       textWORight.append(text)
                       before = mostRight
+                      bb = text[1]
                   else:
                       break 
           else:
               textWORight = texts
-          #print(textWORight)
-          #print(texts)
-
+          print(textWORight)
+          print(texts)
+          print("Contenated", concatenatedText)
           leftText = ' '.join([x[1] for x in textWORight])
+          for l in limiter:
+              leftText = leftText.replace(l +' ', '++++++++++++++')
+          leftText = leftText.split('++++++++++++++')[0]
           if len(texts) < 2:
             rightText = leftText
           else:
@@ -218,20 +276,31 @@ def OcrThenCropRunning(videoFilename, top: int, left: int, bottom: int, right: i
             else:
                 rightText = texts[len(textWORight)][1]
           if (wordbefore is not None):
-            #print("before", wordbefore)
-            #print("left", leftText)
+            print("before: ", wordbefore)
+            print("left: ", leftText)
             werR = getCER(wordbefore, leftText)
             werL = getCER(leftText, wordbefore)
-            #print("R", werR)
-            #print("L", werL)
+            print("R: ", werR)
+            print("L: ", werL)
             wer = werR + werL
             if wer > 3:
               if concatenatedText != "":
-                  timestampToCut.append((textStart, (fpsElapsed - fpsProccess*(frameNoText + 1))))
-                  addTimestamp(videoFilename, formatMinute(textStart / fps), formatMinute((fpsElapsed - fpsProccess*(frameNoText + 1))  / fps), concatenatedText, None)
+                  print("FINAL: ", concatenatedText, "=========================================================================")
+                  timestampToCut.append((textStart, (fpsElapsed - fpsProccess*(frameNoText - 1))))
+                  timeStart = dt + timedelta(seconds=textStart/fps)
+                  timestr= timeStart.strftime("%Y_%m_%d_%H_%M_%S")
+                  if timestr == '2024_11_12_00_19_38':
+                      # exit(0)
+                      pass
+                  path = f'videos/{folderOutput}/{timestr}.mp4'
+                  duration = ((fpsElapsed - fpsProccess*(frameNoText - 1)) - textStart) / fps
+                  ret = formatOCRResult(videoFilename, path, timeStart, concatenatedText, duration, None)
+                  ocrResult.append(ret)
+
+
    
-              wordbefore = leftText
-              concatenatedText = leftText
+              wordbefore = None
+              concatenatedText = ""
               textStart = fpsElapsed
             else:
               wordbefore = leftText 
@@ -249,22 +318,36 @@ def OcrThenCropRunning(videoFilename, top: int, left: int, bottom: int, right: i
           frameNoText += 1
           if frameNoText > frameNoTextThreshold:
             if concatenatedText != "":
-                timestampToCut.append((textStart, (fpsElapsed - fpsProccess*(frameNoText + 1))))
-                addTimestamp(videoFilename, formatMinute(textStart / fps), formatMinute((fpsElapsed - fpsProccess*(frameNoText + 1))  / fps), concatenatedText, None)
+                timestampToCut.append((textStart, (fpsElapsed - fpsProccess*(frameNoText - 1))))
+                timeStart = dt + timedelta(seconds=textStart/fps)
+                timestr= timeStart.strftime("%Y_%m_%d_%H_%M_%S")
+                path = f'videos/{folderOutput}/{timestr}.mp4'
+                duration = ((fpsElapsed - fpsProccess*(frameNoText - 1)) - textStart) / fps
+                ret = formatOCRResult(videoFilename, path, timeStart, concatenatedText, duration, None)
+                ocrResult.append(ret)
 
-                concatenatedText = ""
-                wordbefore = None
+            
+            textStart = fpsElapsed
+            #reset nonetheless
+            concatenatedText = ""
+            wordbefore = None
             frameNoText = 0
 
-        
+    cap.release()  
     video = editor.VideoFileClip(videoFilename)
     i = 0
-    for timestamp in tqdm(timestampToCut):
+    for timestamp in timestampToCut:
         #video.crop(x1=left, x2=right, y1=top, y2=bottom).subclip(timestamp[0] / fps, timestamp[1] / fps).write_videofile(f'videos/{folderOutput}/outputCropped_{i}.mp4'
         #, codec='mpeg4', fps=video.fps, logger=None)
-        video.subclip(timestamp[0] / fps, timestamp[1] / fps).write_videofile(f'videos/{folderOutput}/{videoFilename.split("/")[1].split(".")[0].replace(" ", "_")}_outputOriginal_{i}.mp4'
-        , codec='mpeg4', fps=video.fps, logger=None)   
+        time = dt + timedelta(seconds=timestamp[0]/ fps) 
+        timestr = time.strftime("%Y_%m_%d_%H_%M_%S")
+
+        print(timestamp)
+        video.subclip(timestamp[0] / fps, timestamp[1] / fps).write_videofile(f'videos/{folderOutput}/{timestr}.mp4'
+        , codec='libx264', fps=video.fps, logger=None)   
         i += 1
+    video.close()
+    return ocrResult
 
 
         
