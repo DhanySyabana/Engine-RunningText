@@ -26,5 +26,6 @@ def getCER(source, dest) -> float:
         )
         return result
     except Exception as e:
+        print(source,dest)
         print(f"Error: {e}")
         return 9999.0

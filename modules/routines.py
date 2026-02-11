@@ -8,8 +8,9 @@ def deleteExpiredFile():
     page = 1
     data, total, totalPage = GetOCRResult(date_to=threeDaysAgo, page=page)
     while total > 0:
+        print(total)
         deleteData(data)
-        data, total, totalPage = GetOCRResult(date_to=threeDaysAgo)
+        data, total, totalPage = GetOCRResult(date_to=threeDaysAgo, page=1)
 
 
 
@@ -17,10 +18,8 @@ def deleteExpiredFile():
 def deleteData(data):
     print("DELETE :", data)
     for d in data:
-        print(d)
         succ = tryDeleteFile(d["result"])
-        if succ:
-            deleteTimestamp(d["_id"])
+        deleteTimestamp(d["_id"])
 
 
     
