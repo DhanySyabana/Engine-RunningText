@@ -133,11 +133,11 @@ if __name__ == '__main__':
     berita1Thread = threading.Thread(target=run, args=('beritasatu', '/home/comvis/siputri/BERITASATUSTREAMING'))
     # idxThread = threading.Thread(target=run, args=('idxchannel', '/home/comvis/remote1/IDXSTREAMING'))
     # inewsThread = threading.Thread(target=run, args=('inewstv', '/home/comvis/remote1/INEWSSTREAMING'))
-    # nusataraThread = threading.Thread(target=run, args=('nusantaratv', '/home/comvis/siputri/NUSANTARATVSTREAMING'))
+    # nusataraThread = threading.Thread(target=run, args=('nusantaratv', '/home/comvis/remote1/NUSANTARATVSTREAMING'))
     mncThread = threading.Thread(target=run, args=('mnctv', '/home/comvis/remote1/MNCSTREAMING'))
     # tvoneThread = threading.Thread(target=run, args=('tvone','/home/comvis/remote2/TVONETVSTB'))
     # tvriThread = threading.Thread(target=run, args=('tvri', '/home/comvis/siputri/TVRISTREAMING'))
-    # garudaThread = threading.Thread(target=run, args=('garuda','/home/comvis/remote1/GARUDASTREAMING'))
+    #garudaThread = threading.Thread(target=run, args=('garuda','/home/comvis/remote1/GARUDASTREAMING'))
     #deleteThread = threading.Thread(target=deleteRoutine)
 
     #metroThread.start()
@@ -151,7 +151,7 @@ if __name__ == '__main__':
     mncThread.start()
     # tvoneThread.start()
     # tvriThread.start()
-    # garudaThread.start()
+    #garudaThread.start()
     #deleteThread.start()
 
     #metroThread.join()
@@ -165,7 +165,7 @@ if __name__ == '__main__':
     mncThread.join()
     # tvoneThread.join()
     # tvriThread.join()
-    # garudaThread.join()
+    #garudaThread.join()
     #deleteThread.join()
 
    

@@ -4,7 +4,7 @@ from utils.delete import tryDeleteFile
 
 
 def deleteExpiredFile():
-    threeDaysAgo= datetime.now() - timedelta(days=3)
+    threeDaysAgo= datetime.now() - timedelta(days=6)
     page = 1
     data, total, totalPage = GetOCRResult(date_to=threeDaysAgo, page=page)
     while total > 0:

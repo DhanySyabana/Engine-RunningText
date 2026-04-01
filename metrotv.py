@@ -52,9 +52,8 @@ def stop():
 
 start_time = time.time()
 def run(channel, channelPath):
-    
     while True:
-        time.sleep(20)
+        time.sleep(30)
 
         i = 0
         id = None
@@ -65,12 +64,19 @@ def run(channel, channelPath):
 
             print("last : ", last)
 
-            
+            if last and last['status'] == 'RUNNING':
+                print("FORCE: RUNNING → COMPLETED")
+                updateWatchLogStatus(last["_id"], "COMPLETED")        
             if last is None:
                 lastTime = datetime.today() - timedelta(days=1)
                 today = lastTime.strftime('%Y%m%d')
                 today_morning = today + "000000"
                 lastTime = datetime.strptime(today_morning, '%Y%m%d%H%M%S')
+            # if last is None:
+            #     lastTime = datetime.today() - timedelta(days=3)
+            #     today = lastTime.strftime('%Y%m%d')
+            #     today_morning = today + "000000"
+            #     lastTime = datetime.strptime(today_morning, '%Y%m%d%H%M%S')
             else:
                 if last['status'] != 'COMPLETED':
                     #that means previous run is failed
@@ -88,7 +94,7 @@ def run(channel, channelPath):
                 else:
                     lastTime = last['time']
                     tries = 0
-
+            
             filePath, timestamps = getNextUnprocessVideo(channelPath, lastTime, channel )
 
 
@@ -102,9 +108,6 @@ def run(channel, channelPath):
             #skipping if file is in writing
             print(delta.seconds / 60)
             if delta.total_seconds() / 60 < 20:
-                continue
-
-            if channel == 'beritasatu' and delta.total_seconds() / 60 < 60: 
                 continue
 
             print(properties.tv[channel])
@@ -135,19 +138,19 @@ def deleteRoutine():
     return
 
 if __name__ == '__main__':
-     #metroThread = threading.Thread(target=run, args=('metrotv', '/home/comvis/siputri/METROTVSTREAMING'))
+    #metroThread = threading.Thread(target=run, args=('metrotv', '/home/comvis/siputri/METROTVSTREAMING'))
     kompasThread = threading.Thread(target=run, args=('kompastv', '/home/comvis/remote1/KOMPASTVSTB'))
     #cnnThread = threading.Thread(target=run, args=('cnn', '/home/comvis/siputri/CNNSTREAMING'))
     ##trans7Thread = threading.Thread(target=run, args=('trans7', '/home/comvis/remote1/TRANS7STREAMING'))
     #berita1Thread = threading.Thread(target=run, args=('beritasatu', '/home/comvis/siputri/BERITASATUSTREAMING'))
-    idxThread = threading.Thread(target=run, args=('idxchannel', '/home/comvis/siputri/IDXSTREAMING'))
+    # idxThread = threading.Thread(target=run, args=('idxchannel', '/home/comvis/remote2/IDXSTREAMING'))
     #inewsThread = threading.Thread(target=run, args=('inewstv', '/home/comvis/remote1/INEWSSTREAMING'))
-    # nusataraThread = threading.Thread(target=run, args=('nusantaratv', '/home/comvis/siputri/NUSANTARATVSTREAMING'))
+    # nusataraThread = threading.Thread(target=run, args=('nusantaratv', '/home/comvis/remote1/NUSANTARATVSTREAMING'))
     # mncThread = threading.Thread(target=run, args=('mnctv', '/home/comvis/remote1/MNCSTREAMING'))
     # tvoneThread = threading.Thread(target=run, args=('tvone','/home/comvis/remote2/TVONETVSTB'))
     # tvriThread = threading.Thread(target=run, args=('tvri', '/home/comvis/remote2/TVRITVSTB'))
     # tvriThread = threading.Thread(target=run, args=('tvri', '/home/comvis/siputri/TVRISTREAMING'))
-    garudaThread = threading.Thread(target=run, args=('garuda','/home/comvis/siputri/GARUDASTREAMING'))
+    # garudaThread = threading.Thread(target=run, args=('garuda','/home/comvis/remote2/GARUDATVSTB'))
     #deleteThread = threading.Thread(target=deleteRoutine)
 
     #metroThread.start()
@@ -155,13 +158,13 @@ if __name__ == '__main__':
     #cnnThread.start()
     ##trans7Thread.start() 
     #berita1Thread.start()
-    idxThread.start()
+    # idxThread.start()
     # inewsThread.start()
     # nusataraThread.start()
     # mncThread.start()
     # tvoneThread.start()
     # tvriThread.start()
-    garudaThread.start()
+    # garudaThread.start()
     #deleteThread.start()
 
     #metroThread.join()
@@ -169,13 +172,13 @@ if __name__ == '__main__':
     #cnnThread.join()
     ##trans7Thread.join() 
     #berita1Thread.join()
-    idxThread.join()
+    # idxThread.join()
     # inewsThread.join()
     # nusataraThread.join()
     # mncThread.join()
     # tvoneThread.join()
     # tvriThread.join()
-    garudaThread.join()
+    # garudaThread.join()
     #deleteThread.join()
 
    

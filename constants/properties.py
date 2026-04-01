@@ -120,10 +120,10 @@ tv = {
         'alias': "TVRI"
     	},
      'garuda': {
-        'top': 576 - 50,
-        'left' : 155,
-        'bottom' : 576 - 15,
-        'right': 1024 - 185,
+        'top': 720 - 60,
+        'left' : 225,
+        'bottom' : 718 - 15,
+        'right': 1104 - 60,
         'type' : 'flip',
         'threshold' : 500000,
         'alias' : 'GARUDA TV'

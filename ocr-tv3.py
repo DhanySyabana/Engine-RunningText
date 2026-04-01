@@ -59,7 +59,6 @@ def run(channel, channelPath):
 
         print("last : ", last)
 
-        
         if last is None:
             lastTime = datetime.today() - timedelta(days=1)
             today = lastTime.strftime('%Y%m%d')
@@ -85,7 +84,6 @@ def run(channel, channelPath):
 
         filePath, timestamps = getNextUnprocessVideo(channelPath, lastTime, channel )
 
-
         if filePath is None or timestamps is None:
             return
         #shutil.copy(channelPath+ '/' + filePath, 'temp/' )
@@ -95,14 +93,14 @@ def run(channel, channelPath):
         
         #skipping if file is in writing
         print(delta.seconds / 60)
-        if delta.seconds / 60 < 20:
+        if delta.total_seconds() / 60 < 20:
             return
 
         print(properties.tv[channel])
         id = addNewWatchLog(timestamps, channel, datetime.now(), tries)
         res = cropAndOcr(channelPath+ '/' + filePath, timestamps, **properties.tv[channel], logId=id, folderOutput=f'{channel}' )
 
-        
+
         sr = SaveResults(res, channel, properties.tv[channel]['alias'])
         torch.cuda.empty_cache()
         print(sr)
@@ -127,45 +125,45 @@ def deleteRoutine():
 
 if __name__ == '__main__':
     #metroThread = threading.Thread(target=run, args=('metrotv', '/home/comvis/siputri/METROTVSTREAMING'))
-    #kompasThread = threading.Thread(target=run, args=('kompastv', '/home/comvis/siputri/KOMPASSTREAMING'))
+    # kompasThread = threading.Thread(target=run, args=('kompastv', '/home/comvis/remote1/KOMPASTVSTB'))
     #cnnThread = threading.Thread(target=run, args=('cnn', '/home/comvis/siputri/CNNSTREAMING'))
     ##trans7Thread = threading.Thread(target=run, args=('trans7', '/home/comvis/remote1/TRANS7STREAMING'))
     #berita1Thread = threading.Thread(target=run, args=('beritasatu', '/home/comvis/remote1/BERITASATUSTREAMING'))
-    # idxThread = threading.Thread(target=run, args=('idxchannel', '/home/comvis/siputri/IDXSTREAMING'))
-    # inewsThread = threading.Thread(target=run, args=('inewstv', '/home/comvis/remote1/INEWSSTREAMING'))
-    nusataraThread = threading.Thread(target=run, args=('nusantaratv', '/home/comvis/siputri/NUSANTARATVSTREAMING'))
+    idxThread = threading.Thread(target=run, args=('idxchannel', '/home/comvis/remote2/IDXSTREAMING'))
+    inewsThread = threading.Thread(target=run, args=('inewstv', '/home/comvis/remote1/INEWSSTREAMING'))
+    nusataraThread = threading.Thread(target=run, args=('nusantaratv', '/home/comvis/remote1/NUSANTARATVSTREAMING'))
     # mncThread = threading.Thread(target=run, args=('mnctv', '/home/comvis/remote2/MNCSTREAMING'))
     # tvoneThread = threading.Thread(target=run, args=('tvone','/home/comvis/remote2/TVONETVSTB'))
-    tvriThread = threading.Thread(target=run, args=('tvri', '/home/comvis/siputri/TVRISTREAMING'))
-    garudaThread = threading.Thread(target=run, args=('garuda','/home/comvis/siputri/GARUDASTREAMING'))
+    # tvriThread = threading.Thread(target=run, args=('tvri', '/home/comvis/siputri/TVRISTREAMING'))
+    # garudaThread = threading.Thread(target=run, args=('garuda','/home/comvis/remote1/GARUDASTREAMING'))
     #deleteThread = threading.Thread(target=deleteRoutine)
 
     #metroThread.start()
-    #kompasThread.start()
+    # kompasThread.start()
     #cnnThread.start()
     ##trans7Thread.start() 
     #berita1Thread.start()
-    #idxThread.start()
-    # inewsThread.start()
+    idxThread.start()
+    inewsThread.start()
     nusataraThread.start()
     # mncThread.start()
     # tvoneThread.start()
-    tvriThread.start()
-    garudaThread.start()
+    # tvriThread.start()
+    # garudaThread.start()
     # deleteThread.start()
 
     #metroThread.join()
-    #kompasThread.join()
+    # kompasThread.join()
     #cnnThread.join()
     ##trans7Thread.join() 
     #berita1Thread.join()
-    #idxThread.join()
-    # inewsThread.join()
+    idxThread.join()
+    inewsThread.join()
     nusataraThread.join()
     # mncThread.join()
     # tvoneThread.join()
-    tvriThread.join()
-    garudaThread.join()
+    # tvriThread.join()
+    # garudaThread.join()
     #deleteThread.join()
 
    
